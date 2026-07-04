@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
 DEFAULTS: dict[str, Any] = {
-    "hotkey": "f9",
+    # fn is a macOS-only concept: on other platforms the OS never sees the key
+    "hotkey": "fn" if sys.platform == "darwin" else "f9",
     "model": "small",
     "device": "auto",
     "compute_type": "auto",
@@ -22,6 +24,9 @@ DEFAULTS: dict[str, Any] = {
     "ollama_model": "llama3.2",
     "ollama_url": "http://localhost:11434",
     "save_recordings": False,
+    "history": True,
+    "dashboard": True,
+    "dashboard_port": 8765,
 }
 
 

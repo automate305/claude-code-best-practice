@@ -56,6 +56,36 @@ class TestClean(unittest.TestCase):
         self.assertEqual(clean("all done!", ensure_punctuation=True), "All done!")
         self.assertEqual(clean("", ensure_punctuation=True), "")
 
+    def test_spoken_exclamation_all_forms(self):
+        self.assertEqual(clean("whoo-hoo exclamation exclamation.", spoken_punctuation=True),
+                         "Whoo-hoo!!")
+        self.assertEqual(clean("that worked exclamation mark", spoken_punctuation=True),
+                         "That worked!")
+        self.assertEqual(clean("yes exclamation point", spoken_punctuation=True), "Yes!")
+
+    def test_spoken_question_mark_and_capitalization_after(self):
+        self.assertEqual(clean("are you coming question mark see you soon",
+                               spoken_punctuation=True),
+                         "Are you coming? See you soon")
+
+    def test_spoken_period_and_comma(self):
+        self.assertEqual(clean("end of story period", spoken_punctuation=True),
+                         "End of story.")
+        self.assertEqual(clean("wait comma what question mark", spoken_punctuation=True),
+                         "Wait, what?")
+
+    def test_spoken_new_line(self):
+        self.assertEqual(clean("first item new line second item", spoken_punctuation=True),
+                         "First item\nSecond item")
+
+    def test_spoken_punctuation_off_by_default_and_no_false_positives(self):
+        self.assertEqual(clean("I have a question for you"), "I have a question for you")
+        self.assertEqual(clean("end of story period"), "End of story period")
+
+    def test_spoken_command_absorbs_whispers_own_comma(self):
+        self.assertEqual(clean("really, question mark", spoken_punctuation=True),
+                         "Really?")
+
 
 if __name__ == "__main__":
     unittest.main()

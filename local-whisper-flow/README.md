@@ -105,12 +105,21 @@ First run writes `~/.config/localflow/config.json` with defaults:
   the emoji picker or Apple dictation.
 - `model`: `tiny`/`base`/`small`/`medium`/`large-v3` or distil variants.
   `small` is a good CPU default; `distil-large-v3` if you have a GPU.
-- `language`: `null` auto-detects; set `"en"` to skip detection (faster).
+- `language`: `null` auto-detects; set `"en"` to skip per-utterance language
+  detection — a free speed win if you only dictate English.
+- Feeling slow on CPU? `"model": "base.en"` with `"language": "en"` is the
+  speed sweet spot; `"small.en"` splits the difference with `small`.
 - `replacements`: your autocorrect dictionary, applied on every dictation —
   case-insensitive, whole-word. E.g. `{"local whisperer": "LocalFlow"}` fixes a
   name Whisper keeps mishearing.
 - `ensure_punctuation`: guarantees each utterance ends with a sentence
   terminator (Whisper occasionally drops the final period on short phrases).
+- `spoken_punctuation`: say the mark to type it — Whisper rarely infers `!` or
+  `?` from voice tone alone. Commands: **"exclamation mark"** (or "exclamation
+  point", or just "exclamation") → `!`, **"question mark"** → `?`, **"period"** /
+  **"full stop"** → `.`, **"comma"** → `,`, **"new line"**, **"new paragraph"**.
+  Trade-off: dictating a sentence *about* the word "period" will convert it;
+  set `false` to disable.
 - `inject_mode`: `"paste"` (fast, restores your clipboard) or `"type"` (slower,
   never touches the clipboard).
 - `ollama_polish`: set `true` (with [Ollama](https://ollama.com) running) to have a

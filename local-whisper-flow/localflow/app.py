@@ -1,0 +1,110 @@
+"""Orchestrator: hotkey → record → transcribe → format → inject.
+
+Transcription runs on a worker thread so the global key listener never blocks —
+otherwise held keys elsewhere on the system would stutter during inference.
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+from . import formatter
+from .config import parse_hotkey
+from .recorder import SAMPLE_RATE, Recorder
+from .transcriber import Transcriber
+
+# pynput reports left/right variants; the config uses the generic name.
+_KEY_ALIASES = {
+    "ctrl_l": "ctrl", "ctrl_r": "ctrl",
+    "alt_l": "alt", "alt_r": "alt", "alt_gr": "alt",
+    "shift_l": "shift", "shift_r": "shift",
+    "cmd_l": "cmd", "cmd_r": "cmd",
+}
+
+
+def _key_name(key) -> str | None:
+    if hasattr(key, "char") and key.char:
+        return key.char.lower()
+    name = getattr(key, "name", None)
+    return _KEY_ALIASES.get(name, name) if name else None
+
+
+class App:
+    def __init__(self, config: dict[str, Any]) -> None:
+        self.config = config
+        self.hotkey = parse_hotkey(config["hotkey"])
+        self.recorder = Recorder()
+        self.transcriber: Transcriber | None = None
+        self._pressed: set[str] = set()
+
+    def run(self) -> None:
+        from pynput import keyboard  # lazy: needs a display server
+
+        print(f"Loading Whisper model '{self.config['model']}' (first run downloads it)…")
+        self.transcriber = Transcriber(
+            model=self.config["model"],
+            device=self.config["device"],
+            compute_type=self.config["compute_type"],
+            language=self.config["language"],
+        )
+        print(f"Ready. Hold [{self.config['hotkey']}] to dictate; Ctrl+C here to quit.")
+        with keyboard.Listener(
+            on_press=self._on_press, on_release=self._on_release
+        ) as listener:
+            listener.join()
+
+    def _on_press(self, key) -> None:
+        name = _key_name(key)
+        if name is None:
+            return
+        self._pressed.add(name)
+        if self.hotkey <= self._pressed and not self.recorder.recording:
+            print("● recording…")
+            self.recorder.start()
+
+    def _on_release(self, key) -> None:
+        name = _key_name(key)
+        if name is not None:
+            self._pressed.discard(name)
+        if self.recorder.recording and not self.hotkey <= self._pressed:
+            audio = self.recorder.stop()
+            threading.Thread(target=self._process, args=(audio,), daemon=True).start()
+
+    def _process(self, audio) -> None:
+        seconds = len(audio) / SAMPLE_RATE
+        if seconds < self.config["min_seconds"]:
+            print(f"  (ignored: {seconds:.2f}s is below min_seconds)")
+            return
+        if self.config["save_recordings"]:
+            self._save_wav(audio)
+        assert self.transcriber is not None
+        text = self.transcriber.transcribe(audio)
+        text = formatter.clean(text, self.config["fillers"])
+        if text and self.config["ollama_polish"]:
+            text = formatter.polish_with_ollama(
+                text, self.config["ollama_model"], self.config["ollama_url"]
+            )
+        if not text:
+            print("  (no speech detected)")
+            return
+        from .injector import inject
+
+        inject(text, self.config["inject_mode"])
+        print(f"✓ inserted: {text}")
+
+    def _save_wav(self, audio) -> None:
+        import wave
+
+        import numpy as np
+
+        out_dir = Path.home() / ".config" / "localflow" / "recordings"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}.wav"
+        with wave.open(str(path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(SAMPLE_RATE)
+            wav.writeframes((audio * 32767).astype(np.int16).tobytes())

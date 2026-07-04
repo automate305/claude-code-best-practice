@@ -18,6 +18,7 @@ DEFAULTS: dict[str, Any] = {
     "fillers": ["um", "uh", "uhm", "erm", "er", "ah", "hmm", "mmm"],
     "replacements": {},
     "ensure_punctuation": True,
+    "spoken_punctuation": True,
     "inject_mode": "paste",  # "paste" or "type"
     "min_seconds": 0.4,
     "ollama_polish": False,

@@ -38,6 +38,24 @@ class TestClean(unittest.TestCase):
     def test_case_insensitive_fillers(self):
         self.assertEqual(clean("UM, sure. UH, okay."), "Sure. Okay.")
 
+    def test_replacements_apply_case_insensitive_whole_word(self):
+        self.assertEqual(
+            clean("my Local Whisperer works", replacements={"local whisperer": "LocalFlow"}),
+            "My LocalFlow works",
+        )
+
+    def test_replacements_do_not_hit_substrings(self):
+        self.assertEqual(clean("carting cart", replacements={"cart": "wagon"}),
+                         "Carting wagon")
+
+    def test_ensure_punctuation_appends_period(self):
+        self.assertEqual(clean("check check check", ensure_punctuation=True),
+                         "Check check check.")
+
+    def test_ensure_punctuation_respects_existing_terminator(self):
+        self.assertEqual(clean("all done!", ensure_punctuation=True), "All done!")
+        self.assertEqual(clean("", ensure_punctuation=True), "")
+
 
 if __name__ == "__main__":
     unittest.main()

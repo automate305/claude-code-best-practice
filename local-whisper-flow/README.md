@@ -84,6 +84,8 @@ First run writes `~/.config/localflow/config.json` with defaults:
   "compute_type": "auto",
   "language": null,
   "fillers": ["um", "uh", "uhm", "erm", "er", "ah", "hmm", "mmm"],
+  "replacements": {},
+  "ensure_punctuation": true,
   "inject_mode": "paste",
   "min_seconds": 0.4,
   "ollama_polish": false,
@@ -97,6 +99,11 @@ First run writes `~/.config/localflow/config.json` with defaults:
 - `model`: `tiny`/`base`/`small`/`medium`/`large-v3` or distil variants.
   `small` is a good CPU default; `distil-large-v3` if you have a GPU.
 - `language`: `null` auto-detects; set `"en"` to skip detection (faster).
+- `replacements`: your autocorrect dictionary, applied on every dictation —
+  case-insensitive, whole-word. E.g. `{"local whisperer": "LocalFlow"}` fixes a
+  name Whisper keeps mishearing.
+- `ensure_punctuation`: guarantees each utterance ends with a sentence
+  terminator (Whisper occasionally drops the final period on short phrases).
 - `inject_mode`: `"paste"` (fast, restores your clipboard) or `"type"` (slower,
   never touches the clipboard).
 - `ollama_polish`: set `true` (with [Ollama](https://ollama.com) running) to have a

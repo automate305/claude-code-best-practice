@@ -19,9 +19,24 @@ POLISH_PROMPT = (
 )
 
 
-def clean(text: str, fillers: list[str] | None = None) -> str:
-    """Deterministic cleanup: fillers out, punctuation repaired, sentences capitalized."""
+def clean(
+    text: str,
+    fillers: list[str] | None = None,
+    replacements: dict[str, str] | None = None,
+    ensure_punctuation: bool = False,
+) -> str:
+    """Deterministic cleanup: fillers out, punctuation repaired, sentences capitalized.
+
+    replacements is the user's autocorrect dictionary (case-insensitive,
+    whole-word), applied before everything else so its output flows through the
+    same cleanup. ensure_punctuation guarantees the utterance ends in a
+    sentence terminator.
+    """
     fillers = DEFAULT_FILLERS if fillers is None else fillers
+    for wrong, right in (replacements or {}).items():
+        text = re.sub(
+            r"(?i)\b" + re.escape(wrong) + r"\b", right.replace("\\", r"\\"), text
+        )
     if fillers:
         pattern = r"(?i)\b(?:" + "|".join(re.escape(f) for f in fillers) + r")\b[,.]?"
         text = re.sub(pattern, "", text)
@@ -29,7 +44,10 @@ def clean(text: str, fillers: list[str] | None = None) -> str:
     text = re.sub(r",[\s,]*,", ",", text)  # collapse comma runs left by fillers
     text = re.sub(r"\s{2,}", " ", text).strip()
     text = re.sub(r"^[,.;:\s]+", "", text)  # orphan punctuation at the start
-    return _capitalize_sentences(text)
+    text = _capitalize_sentences(text)
+    if ensure_punctuation and text and text[-1].isalnum():
+        text += "."
+    return text
 
 
 def _capitalize_sentences(text: str) -> str:

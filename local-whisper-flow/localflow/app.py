@@ -6,12 +6,13 @@ otherwise held keys elsewhere on the system would stutter during inference.
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any
 
-from . import formatter
+from . import formatter, history
 from .config import parse_hotkey
 from .recorder import SAMPLE_RATE, Recorder
 from .transcriber import Transcriber
@@ -25,11 +26,19 @@ _KEY_ALIASES = {
 }
 
 
+# macOS: fn is absent from pynput's key table; it arrives as a bare vk.
+_DARWIN_VK_NAMES = {0x3F: "fn"}
+
+
 def _key_name(key) -> str | None:
     if hasattr(key, "char") and key.char:
         return key.char.lower()
     name = getattr(key, "name", None)
-    return _KEY_ALIASES.get(name, name) if name else None
+    if name:
+        return _KEY_ALIASES.get(name, name)
+    if sys.platform == "darwin":
+        return _DARWIN_VK_NAMES.get(getattr(key, "vk", None))
+    return None
 
 
 class App:
@@ -50,28 +59,45 @@ class App:
             compute_type=self.config["compute_type"],
             language=self.config["language"],
         )
+        if self.config["dashboard"]:
+            from .dashboard import start_dashboard
+
+            port = self.config["dashboard_port"]
+            start_dashboard(port)
+            print(f"Dashboard: http://127.0.0.1:{port}")
         print(f"Ready. Hold [{self.config['hotkey']}] to dictate; Ctrl+C here to quit.")
         with keyboard.Listener(
             on_press=self._on_press, on_release=self._on_release
         ) as listener:
             listener.join()
 
-    def _on_press(self, key) -> None:
-        name = _key_name(key)
-        if name is None:
-            return
+    def _press_name(self, name: str) -> None:
         self._pressed.add(name)
         if self.hotkey <= self._pressed and not self.recorder.recording:
             print("● recording…")
             self.recorder.start()
 
-    def _on_release(self, key) -> None:
-        name = _key_name(key)
-        if name is not None:
-            self._pressed.discard(name)
+    def _release_name(self, name: str) -> None:
+        self._pressed.discard(name)
         if self.recorder.recording and not self.hotkey <= self._pressed:
             audio = self.recorder.stop()
             threading.Thread(target=self._process, args=(audio,), daemon=True).start()
+
+    def _on_press(self, key) -> None:
+        name = _key_name(key)
+        if name is not None:
+            self._press_name(name)
+
+    def _on_release(self, key) -> None:
+        name = _key_name(key)
+        if name is None:
+            return
+        # macOS reports fn only via on_release, for both directions of travel;
+        # alternate the events into press/release so hold-to-talk works.
+        if name == "fn" and sys.platform == "darwin" and "fn" not in self._pressed:
+            self._press_name("fn")
+            return
+        self._release_name(name)
 
     def _process(self, audio) -> None:
         seconds = len(audio) / SAMPLE_RATE
@@ -81,9 +107,11 @@ class App:
         if self.config["save_recordings"]:
             self._save_wav(audio)
         assert self.transcriber is not None
-        text = self.transcriber.transcribe(audio)
+        started = time.time()
+        raw = self.transcriber.transcribe(audio)
+        latency = time.time() - started
         text = formatter.clean(
-            text,
+            raw,
             self.config["fillers"],
             replacements=self.config["replacements"],
             ensure_punctuation=self.config["ensure_punctuation"],
@@ -99,6 +127,16 @@ class App:
 
         inject(text, self.config["inject_mode"])
         print(f"✓ inserted: {text}")
+        if self.config["history"]:
+            history.record({
+                "ts": time.time(),
+                "time": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "seconds": round(seconds, 2),
+                "latency": round(latency, 2),
+                "raw": raw,
+                "text": text,
+                "words": len(text.split()),
+            })
 
     def _save_wav(self, audio) -> None:
         import wave

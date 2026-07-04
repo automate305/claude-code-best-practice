@@ -115,6 +115,7 @@ class App:
             self.config["fillers"],
             replacements=self.config["replacements"],
             ensure_punctuation=self.config["ensure_punctuation"],
+            spoken_punctuation=self.config["spoken_punctuation"],
         )
         if text and self.config["ollama_polish"]:
             text = formatter.polish_with_ollama(

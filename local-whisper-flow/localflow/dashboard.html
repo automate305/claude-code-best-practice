@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalFlow Dashboard</title>
+<style>
+  :root {
+    --surface-1: #fcfcfb;
+    --surface-2: #f2f1ef;
+    --border: #e3e2de;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #8a887f;
+    --accent: #2a78d6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --surface-2: #242422;
+      --border: #34342f;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8a887f;
+      --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--surface-1);
+    color: var(--text-primary);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 32px 20px 64px;
+  }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; }
+  h1 { font-size: 20px; font-weight: 650; }
+  .badge {
+    font-size: 12px; color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px;
+  }
+  .tiles {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 24px;
+  }
+  .tile {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .tile .label { font-size: 12px; color: var(--text-secondary); letter-spacing: .02em; }
+  .tile .value { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .tile .sub { font-size: 12px; color: var(--text-muted); }
+  #search {
+    width: 100%; padding: 9px 12px; margin-bottom: 16px;
+    background: var(--surface-2); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 8px; font: inherit;
+  }
+  #search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .entry {
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 10px; background: var(--surface-1);
+  }
+  .entry .meta {
+    display: flex; gap: 14px; align-items: center;
+    font-size: 12px; color: var(--text-muted); margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .entry .meta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .entry .text { color: var(--text-primary); white-space: pre-wrap; word-break: break-word; }
+  .entry button {
+    margin-left: auto; font: inherit; font-size: 12px; cursor: pointer;
+    color: var(--text-secondary); background: none;
+    border: 1px solid var(--border); border-radius: 6px; padding: 2px 10px;
+  }
+  .entry button:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  #empty { color: var(--text-muted); text-align: center; padding: 48px 0; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>LocalFlow</h1>
+    <span class="badge">100% local &middot; 127.0.0.1 only</span>
+  </header>
+
+  <div class="tiles">
+    <div class="tile"><div class="label">Dictations</div><div class="value" id="t-count">–</div><div class="sub">all time</div></div>
+    <div class="tile"><div class="label">Words dictated</div><div class="value" id="t-words">–</div><div class="sub">all time</div></div>
+    <div class="tile"><div class="label">Today</div><div class="value" id="t-today">–</div><div class="sub">dictations</div></div>
+    <div class="tile"><div class="label">Avg transcribe</div><div class="value" id="t-latency">–</div><div class="sub">seconds per utterance</div></div>
+  </div>
+
+  <input id="search" type="search" placeholder="Search your dictations…" autocomplete="off">
+  <div id="list"></div>
+  <div id="empty" hidden>No dictations yet — hold your hotkey and speak.</div>
+
+<script>
+  let entries = [];
+
+  function fmt(n) { return n.toLocaleString(); }
+
+  function renderStats() {
+    document.getElementById("t-count").textContent = fmt(entries.length);
+    document.getElementById("t-words").textContent =
+      fmt(entries.reduce((s, e) => s + (e.words || 0), 0));
+    const today = new Date().toDateString();
+    document.getElementById("t-today").textContent =
+      fmt(entries.filter(e => new Date(e.ts * 1000).toDateString() === today).length);
+    const lat = entries.filter(e => typeof e.latency === "number");
+    document.getElementById("t-latency").textContent = lat.length
+      ? (lat.reduce((s, e) => s + e.latency, 0) / lat.length).toFixed(1) + "s"
+      : "–";
+  }
+
+  function renderList() {
+    const q = document.getElementById("search").value.trim().toLowerCase();
+    const shown = entries
+      .filter(e => !q || (e.text || "").toLowerCase().includes(q))
+      .slice()
+      .reverse();
+    const list = document.getElementById("list");
+    list.replaceChildren(...shown.map(e => {
+      const div = document.createElement("div");
+      div.className = "entry";
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const dot = document.createElement("span"); dot.className = "dot";
+      const when = document.createElement("span"); when.textContent = e.time || "";
+      const dur = document.createElement("span");
+      dur.textContent = (e.seconds || 0).toFixed(1) + "s spoken · " +
+                        (e.latency || 0).toFixed(1) + "s transcribe · " +
+                        (e.words || 0) + " words";
+      const btn = document.createElement("button");
+      btn.textContent = "Copy";
+      btn.onclick = () => navigator.clipboard.writeText(e.text).then(() => {
+        btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy", 1200);
+      });
+      meta.append(dot, when, dur, btn);
+      const text = document.createElement("div");
+      text.className = "text";
+      text.textContent = e.text || "";
+      div.append(meta, text);
+      return div;
+    }));
+    document.getElementById("empty").hidden = shown.length > 0;
+  }
+
+  async function refresh() {
+    try {
+      const res = await fetch("/api/history");
+      entries = await res.json();
+      renderStats();
+      renderList();
+    } catch (err) { /* app restarting; retry on next tick */ }
+  }
+
+  document.getElementById("search").addEventListener("input", renderList);
+  refresh();
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

@@ -82,7 +82,12 @@ class App:
             self._save_wav(audio)
         assert self.transcriber is not None
         text = self.transcriber.transcribe(audio)
-        text = formatter.clean(text, self.config["fillers"])
+        text = formatter.clean(
+            text,
+            self.config["fillers"],
+            replacements=self.config["replacements"],
+            ensure_punctuation=self.config["ensure_punctuation"],
+        )
         if text and self.config["ollama_polish"]:
             text = formatter.polish_with_ollama(
                 text, self.config["ollama_model"], self.config["ollama_url"]

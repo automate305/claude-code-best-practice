@@ -13,6 +13,17 @@ import urllib.request
 
 DEFAULT_FILLERS = ["um", "uh", "uhm", "erm", "er", "ah", "hmm", "mmm"]
 
+# Spoken punctuation commands (Dragon/Apple-dictation style). Whisper small
+# rarely infers ! or ? from voice tone, so saying the mark is the reliable way.
+_SPOKEN_PUNCTUATION = [
+    (r"exclamation(?:\s+(?:mark|point))?", "!"),
+    (r"question\s+mark", "?"),
+    (r"full\s+stop|period", "."),
+    (r"comma", ","),
+    (r"new\s+paragraph", "\n\n"),
+    (r"new\s+line", "\n"),
+]
+
 POLISH_PROMPT = (
     "Fix grammar, punctuation, and flow of this dictated text. Keep the meaning "
     "and tone. Return ONLY the corrected text, nothing else.\n\n{text}"
@@ -24,6 +35,7 @@ def clean(
     fillers: list[str] | None = None,
     replacements: dict[str, str] | None = None,
     ensure_punctuation: bool = False,
+    spoken_punctuation: bool = False,
 ) -> str:
     """Deterministic cleanup: fillers out, punctuation repaired, sentences capitalized.
 
@@ -40,9 +52,14 @@ def clean(
     if fillers:
         pattern = r"(?i)\b(?:" + "|".join(re.escape(f) for f in fillers) + r")\b[,.]?"
         text = re.sub(pattern, "", text)
+    if spoken_punctuation:
+        for spoken, mark in _SPOKEN_PUNCTUATION:
+            # absorb the comma/period Whisper wraps around the spoken command
+            text = re.sub(r"(?i)[,.]?\s*\b(?:" + spoken + r")\b[,.]?", mark, text)
     text = re.sub(r"\s+([,.!?;:])", r"\1", text)  # no space before punctuation
     text = re.sub(r",[\s,]*,", ",", text)  # collapse comma runs left by fillers
-    text = re.sub(r"\s{2,}", " ", text).strip()
+    text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)
+    text = re.sub(r"[ \t]{2,}", " ", text).strip()
     text = re.sub(r"^[,.;:\s]+", "", text)  # orphan punctuation at the start
     text = _capitalize_sentences(text)
     if ensure_punctuation and text and text[-1].isalnum():
@@ -52,7 +69,7 @@ def clean(
 
 def _capitalize_sentences(text: str) -> str:
     return re.sub(
-        r"(^|[.!?]\s+)([a-z])", lambda m: m.group(1) + m.group(2).upper(), text
+        r"(^|[.!?]\s+|\n)([a-z])", lambda m: m.group(1) + m.group(2).upper(), text
     )
 
 

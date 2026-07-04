@@ -78,7 +78,7 @@ First run writes `~/.config/localflow/config.json` with defaults:
 
 ```json
 {
-  "hotkey": "f9",
+  "hotkey": "fn",
   "model": "small",
   "device": "auto",
   "compute_type": "auto",
@@ -91,11 +91,18 @@ First run writes `~/.config/localflow/config.json` with defaults:
   "ollama_polish": false,
   "ollama_model": "llama3.2",
   "ollama_url": "http://localhost:11434",
-  "save_recordings": false
+  "save_recordings": false,
+  "history": true,
+  "dashboard": true,
+  "dashboard_port": 8765
 }
 ```
 
-- `hotkey`: single key (`"f9"`) or combo (`"ctrl+alt"`) — all parts held = recording.
+- `hotkey`: single key or combo (`"ctrl+alt"`) — all parts held = recording.
+  Defaults to `"fn"` on macOS (the bottom-left key), `"f9"` elsewhere: the OS
+  never exposes fn on Windows/Linux keyboards. On macOS, set System Settings →
+  Keyboard → *Press 🌐 key* to **Do Nothing** so tapping fn doesn't also open
+  the emoji picker or Apple dictation.
 - `model`: `tiny`/`base`/`small`/`medium`/`large-v3` or distil variants.
   `small` is a good CPU default; `distil-large-v3` if you have a GPU.
 - `language`: `null` auto-detects; set `"en"` to skip detection (faster).
@@ -108,6 +115,20 @@ First run writes `~/.config/localflow/config.json` with defaults:
   never touches the clipboard).
 - `ollama_polish`: set `true` (with [Ollama](https://ollama.com) running) to have a
   local LLM fix grammar and flow, like Wispr Flow's cloud cleanup — but on-device.
+- `history` / `dashboard` / `dashboard_port`: dictation log and the local
+  dashboard (below).
+
+## Dashboard
+
+While LocalFlow runs, open **http://127.0.0.1:8765** for a Wispr Flow-style
+dashboard: total dictations, words dictated, today's count, average transcribe
+latency, plus a searchable history of everything you've dictated with per-entry
+copy buttons. It auto-refreshes as you dictate.
+
+Privacy: the history lives in `~/.config/localflow/history.jsonl` and the
+dashboard binds to `127.0.0.1` only — nothing is reachable from the network.
+Set `"history": false` to keep no log at all, or `"dashboard": false` to log
+without serving the page.
 
 ## Tests
 

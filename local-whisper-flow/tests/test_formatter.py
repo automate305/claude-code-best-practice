@@ -1,0 +1,43 @@
+import sys
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from localflow.formatter import clean
+
+
+class TestClean(unittest.TestCase):
+    def test_removes_standalone_fillers(self):
+        self.assertEqual(clean("I um think uh so"), "I think so")
+
+    def test_leading_filler_with_comma(self):
+        self.assertEqual(clean("Um, hello there."), "Hello there.")
+
+    def test_filler_between_commas_keeps_single_comma(self):
+        self.assertEqual(clean("Hello, um, world"), "Hello, world")
+
+    def test_does_not_touch_filler_substrings_inside_words(self):
+        self.assertEqual(clean("The umbrella and the drummer"),
+                         "The umbrella and the drummer")
+
+    def test_capitalizes_sentence_starts(self):
+        self.assertEqual(clean("hello. how are you? fine!"),
+                         "Hello. How are you? Fine!")
+
+    def test_collapses_whitespace_and_space_before_punctuation(self):
+        self.assertEqual(clean("hello   world ,  again ."), "Hello world, again.")
+
+    def test_custom_filler_list(self):
+        self.assertEqual(clean("well I mean yes", fillers=["well"]), "I mean yes")
+
+    def test_empty_and_filler_only_input(self):
+        self.assertEqual(clean(""), "")
+        self.assertEqual(clean("um uh hmm"), "")
+
+    def test_case_insensitive_fillers(self):
+        self.assertEqual(clean("UM, sure. UH, okay."), "Sure. Okay.")
+
+
+if __name__ == "__main__":
+    unittest.main()
